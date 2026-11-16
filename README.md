@@ -6,7 +6,7 @@ Diagrama de sequência: [`docs/diagrama-sequencia-auditoria.png`](docs/diagrama-
 
 ## Execução
 
-1. Rode [`docs/ddl-auditoria.sql`](docs/ddl-auditoria.sql) no MySQL compartilhado (cria `cv06_auditorias`, `cv07_resultados_auditoria`, `cv08_correcoes_auditoria`; `ddl-auto=none`).
+1. Tabelas (`ddl-auto=none`): `cv07_auditorias`, `cv08_resultados_auditoria` e `cv10_correcoes_auditoria`. No MySQL do Railway já estão criadas (migração [`docs/migracoes/001-aluno-id-e-correcoes.sql`](docs/migracoes/001-aluno-id-e-correcoes.sql) aplicada em 16/11/2026). Para um banco novo, rode [`docs/ddl-auditoria.sql`](docs/ddl-auditoria.sql).
 2. Defina as variáveis e suba:
 
 | Variável | Uso |

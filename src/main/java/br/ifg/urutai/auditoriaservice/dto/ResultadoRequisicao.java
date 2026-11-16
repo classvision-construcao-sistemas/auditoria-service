@@ -8,4 +8,4 @@ import jakarta.validation.constraints.Size;
 public record ResultadoRequisicao(
         @NotNull @Positive Long alunoId,
         @NotNull @Pattern(regexp = "PRESENTE|POSSIVEL_FALTA", message = "use PRESENTE ou POSSIVEL_FALTA") String situacaoPresenca,
-        @Size(max = 20) String situacaoFace) {}
+        @Size(max = 30) String situacaoFace) {}

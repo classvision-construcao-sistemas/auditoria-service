@@ -57,7 +57,7 @@ GW -> Aud : repassa
 Aud -> Turma : GET /turmas/{turmaId}
 Turma --> Aud : alunos da turma
 Aud -> Aud : valida que cada aluno está ativo na turma
-Aud -> DB : INSERT cv06_auditorias + cv07_resultados_auditoria
+Aud -> DB : INSERT cv07_auditorias + cv08_resultados_auditoria
 DB --> Aud : ok
 Aud --> App : 201 auditoria CONFIRMADA
 
@@ -79,6 +79,6 @@ App -> GW : POST /auditorias/{id}/correcoes (justificativa, resultados[])
 GW -> Aud : repassa
 Aud -> DB : SELECT auditoria
 Aud -> Aud : justificativa obrigatória; aluno precisa estar na auditoria
-Aud -> DB : UPDATE cv07 + INSERT cv08_correcoes_auditoria\n(coordenador, data/hora, justificativa - RSEG-06)
+Aud -> DB : UPDATE cv08 + INSERT cv10_correcoes_auditoria\n(coordenador, data/hora, justificativa - RSEG-06)
 Aud --> App : auditoria CORRIGIDA com histórico de correções
 @enduml

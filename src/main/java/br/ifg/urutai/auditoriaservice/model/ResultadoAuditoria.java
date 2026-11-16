@@ -4,20 +4,22 @@ import jakarta.persistence.*;
 
 /** Dicionário de Dados 2.9: situação de um aluno numa auditoria. */
 @Entity
-@Table(name = "cv07_resultados_auditoria")
+@Table(name = "cv08_resultados_auditoria")
 public class ResultadoAuditoria {
 
     public static final String PRESENTE = "PRESENTE";
     public static final String POSSIVEL_FALTA = "POSSIVEL_FALTA";
+    public static final String RECONHECIDA = "RECONHECIDA";
+    public static final String NAO_RECONHECIDA = "NAO_RECONHECIDA";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "situacao_presenca", nullable = false, length = 20)
+    @Column(name = "situacao_presenca", nullable = false, length = 30)
     private String situacaoPresenca;
 
-    @Column(name = "situacao_face", length = 20)
+    @Column(name = "situacao_face", nullable = false, length = 30)
     private String situacaoFace;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -33,7 +35,7 @@ public class ResultadoAuditoria {
     public ResultadoAuditoria(Long alunoId, String situacaoPresenca, String situacaoFace) {
         this.alunoId = alunoId;
         this.situacaoPresenca = situacaoPresenca;
-        this.situacaoFace = situacaoFace;
+        this.situacaoFace = situacaoFace != null ? situacaoFace : NAO_RECONHECIDA;
     }
 
     public Long getId() { return id; }

@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 
 /** Dicionário de Dados 2.10: log de correção (RSEG-06). Cada correção é um registro novo. */
 @Entity
-@Table(name = "cv08_correcoes_auditoria")
+@Table(name = "cv10_correcoes_auditoria")
 public class CorrecaoAuditoria {
 
     @Id

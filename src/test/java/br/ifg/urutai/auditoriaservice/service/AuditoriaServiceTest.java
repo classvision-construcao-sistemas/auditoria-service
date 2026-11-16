@@ -79,6 +79,8 @@ class AuditoriaServiceTest {
         assertEquals(Auditoria.CONFIRMADA, resposta.situacao());
         assertNotNull(resposta.data());
         assertEquals(2, resposta.resultados().size());
+        // situacao_face é NOT NULL no banco: sem valor vira NAO_RECONHECIDA.
+        assertEquals(ResultadoAuditoria.NAO_RECONHECIDA, resposta.resultados().get(1).situacaoFace());
     }
 
     @Test

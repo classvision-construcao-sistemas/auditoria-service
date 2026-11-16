@@ -9,7 +9,7 @@ import java.util.List;
 
 /** Dicionário de Dados 2.8. turma_id e usuario_id apontam para tabelas de outros serviços. */
 @Entity
-@Table(name = "cv06_auditorias")
+@Table(name = "cv07_auditorias")
 public class Auditoria {
 
     public static final String CONFIRMADA = "CONFIRMADA";
@@ -25,7 +25,7 @@ public class Auditoria {
     @Column(nullable = false)
     private LocalTime horario;
 
-    @Column(nullable = false, length = 50)
+    @Column(nullable = false, length = 30)
     private String situacao;
 
     @Column(name = "bigint_turma_id", nullable = false)

@@ -72,8 +72,8 @@ public class AuditoriaService {
 
         List<AlunoPrevia> alunos = ativos.stream().sorted()
                 .map(id -> reconhecidos.containsKey(id)
-                        ? new AlunoPrevia(id, ResultadoAuditoria.PRESENTE, "RECONHECIDA", reconhecidos.get(id))
-                        : new AlunoPrevia(id, ResultadoAuditoria.POSSIVEL_FALTA, null, null))
+                        ? new AlunoPrevia(id, ResultadoAuditoria.PRESENTE, ResultadoAuditoria.RECONHECIDA, reconhecidos.get(id))
+                        : new AlunoPrevia(id, ResultadoAuditoria.POSSIVEL_FALTA, ResultadoAuditoria.NAO_RECONHECIDA, null))
                 .toList();
 
         LocalDateTime agora = LocalDateTime.now(FUSO);
