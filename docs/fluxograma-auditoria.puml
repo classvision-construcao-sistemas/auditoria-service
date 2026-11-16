@@ -1,0 +1,63 @@
+@startuml fluxograma-auditoria
+title Fluxograma - Auditoria de Presença (UC-AUD-01 a 03, UC-HIS-01 e 02)
+skinparam ActivityBackgroundColor #F5F5F5
+skinparam ActivityBorderColor #444444
+
+|Coordenador (App)|
+start
+:Faz login e recebe o JWT;
+:Escolhe curso e turma;
+:Tira ou escolhe a foto da sala;
+|auditoria-service|
+:POST /auditorias/previa (turmaId, foto);
+if (JWT válido e papel COORDENADOR/ADMINISTRADOR?) then (não)
+  :401 / 403;
+  stop
+else (sim)
+endif
+if (Foto enviada e até 15 MB?) then (não)
+  :400 / 413 com mensagem;
+  stop
+else (sim)
+endif
+:Busca a turma no turma-service;
+if (Turma existe e serviço respondeu?) then (não)
+  :404 ou 502 "tente novamente" (RF-AUD-05);
+  stop
+else (sim)
+endif
+:Mantém só alunos com vínculo ATIVO (RN-06);
+:Envia a foto ao reconhecimento facial (auditar-sala);
+if (Reconhecimento respondeu?) then (não)
+  :400 imagem inválida ou 502 "tente novamente";
+  stop
+else (sim)
+endif
+:Monta a prévia: PRESENTE / POSSÍVEL FALTA,
+faces não identificadas e faces de fora da turma;
+:Descarta a foto (nunca é gravada, RSEG-04);
+|Coordenador (App)|
+:Revisa a lista e ajusta o status de cada aluno;
+:Confirma (data e hora do servidor ou ajustadas);
+|auditoria-service|
+:POST /auditorias;
+if (Alunos pertencem à turma, ativos e sem repetição?) then (não)
+  :409 com o aluno recusado;
+  stop
+else (sim)
+endif
+:Grava cv07_auditorias (CONFIRMADA)
+e cv08_resultados_auditoria;
+|Coordenador (App)|
+if (Precisa corrigir depois?) then (sim)
+  :Abre o histórico (GET /auditorias com filtros);
+  :Abre o detalhe (GET /auditorias/{id});
+  :Informa os alunos e a justificativa obrigatória;
+  |auditoria-service|
+  :POST /auditorias/{id}/correcoes;
+  :Atualiza cv08, grava cv10_correcoes_auditoria
+  e marca a auditoria como CORRIGIDA (RSEG-06);
+else (não)
+endif
+stop
+@enduml

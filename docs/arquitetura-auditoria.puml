@@ -1,0 +1,69 @@
+@startuml arquitetura-auditoria
+title Arquitetura - Microsserviço de Auditoria no ClassVision
+skinparam componentStyle rectangle
+skinparam linetype ortho
+left to right direction
+
+actor "Coordenador" as Coord
+actor "Professor / Administrador" as Outros
+
+node "Clientes" {
+  [App mobile (Flutter)] as App
+  [Painel web] as Web
+}
+
+node "API Gateway (tarefa 14, em construção)" as GW {
+  [Roteamento\n/api/auth/~*~*\n/turmas/~*~*\n/auditorias/~*~*] as Rotas
+}
+
+cloud "Railway - projeto ClassVision" {
+  node "cv-authentication-service\n(Spring Boot)" as Auth {
+    [POST /api/auth/login\nemite JWT HS512\nclaims: id, roles, instituicaoId] as Login
+  }
+  node "auditoria-service\n(Spring Boot 4 / Java 21)" as Aud {
+    [AuditoriaController\n/auditorias] as Ctrl
+    [AuditoriaService] as Svc
+    [TurmaClient] as TC
+    [ReconhecimentoFacialClient] as RC
+  }
+  database "MySQL" as DB {
+    [cv01_usuarios] as T1
+    [cv05_turmas / cv09_turmas_alunos] as T5
+    [cv07_auditorias\ncv08_resultados_auditoria\ncv10_correcoes_auditoria] as T7
+  }
+}
+
+node "turma-service\n(Spring Boot, ainda fora do Railway)" as Turma {
+  [GET /turmas/{id}\nGET /turmas/curso/{cursoId}] as TurmaApi
+}
+
+node "reconhecimento-facial-service\n(Flask, ainda fora do Railway)" as RF {
+  [POST /api/v1/auditar-sala] as Facial
+}
+database "Milvus\n(embeddings)" as Milvus
+
+Coord --> App
+Outros --> Web
+App --> Rotas : HTTPS + Bearer JWT
+Web --> Rotas : HTTPS + Bearer JWT
+Rotas --> Login
+Rotas --> Ctrl
+Ctrl --> Svc
+Svc --> TC
+Svc --> RC
+Svc --> T7 : JPA
+TC --> TurmaApi : REST + JWT repassado
+RC --> Facial : multipart (foto em memória)
+Facial --> Milvus
+TurmaApi --> T5
+Login --> T1
+T7 ..> T1 : FK usuario
+T7 ..> T5 : FK turma
+
+note bottom of Aud
+  Valida o JWT com o mesmo JWT_SECRET do auth.
+  Escrita: COORDENADOR ou ADMINISTRADOR. Leitura: autenticado.
+  A foto nunca é gravada (RSEG-04).
+  URL: https://auditoria-service-production.up.railway.app
+end note
+@enduml

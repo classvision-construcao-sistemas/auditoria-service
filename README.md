@@ -10,6 +10,11 @@ Implementa os casos de uso **UC-AUD-01 a UC-AUD-03** e **UC-HIS-01 e UC-HIS-02**
 
 - **Swagger em produção:** <https://auditoria-service-production.up.railway.app/swagger-ui.html>
 - **Diagrama editável:** [`docs/diagrama-sequencia-auditoria.puml`](docs/diagrama-sequencia-auditoria.puml)
+- **Diagrama de classes:** [`docs/diagrama-classes-auditoria.png`](docs/diagrama-classes-auditoria.png) ([SVG](docs/diagrama-classes-auditoria.svg))
+- **Arquitetura:** [`docs/arquitetura-auditoria.png`](docs/arquitetura-auditoria.png)
+- **Fluxograma:** [`docs/fluxograma-auditoria.png`](docs/fluxograma-auditoria.png)
+
+Cada imagem tem a fonte PlantUML (`.puml`) ao lado.
 
 ## Tecnologias
 
@@ -165,6 +170,17 @@ curl -X POST \
   }' \
   http://localhost:8080/auditorias/1/correcoes
 ```
+
+## Integração com o API Gateway
+
+O que o gateway precisa para expor a auditoria:
+
+| Item | Valor |
+|---|---|
+| Rota | `/auditorias/**` → `https://auditoria-service-production.up.railway.app` (mesmo caminho, sem reescrita) |
+| Cabeçalho | Repassar `Authorization: Bearer <token>` sem alterar; o serviço valida o JWT sozinho |
+| Upload | `POST /auditorias/previa` é `multipart/form-data` com foto de até 15 MB; o gateway deve aceitar esse tamanho |
+| Erros | Repassar status e corpo (`401`, `403`, `404`, `409`, `413`, `502`) para o app mostrar a mensagem |
 
 ## Regras de negócio e segurança
 

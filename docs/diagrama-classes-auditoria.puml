@@ -1,0 +1,228 @@
+@startuml diagrama-classes-auditoria
+title Diagrama de Classes - Microsserviço de Auditoria (16/11/2026)
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+skinparam linetype ortho
+skinparam nodesep 40
+skinparam ranksep 50
+skinparam class {
+  BorderColor #444444
+  ArrowColor #444444
+}
+
+package "controller" #E3F2FD {
+  class AuditoriaController <<RestController /auditorias>> {
+    - auditoriaService : AuditoriaService
+    + previa(turmaId : Long, foto : MultipartFile) : PreviaResposta
+    + confirmar(dados : ConfirmacaoRequisicao) : AuditoriaResposta
+    + listar(cursoId : Long, turmaId : Long, usuarioId : Long, inicio : LocalDate, fim : LocalDate) : List<AuditoriaResposta>
+    + buscar(id : Long) : AuditoriaResposta
+    + corrigir(id : Long, dados : CorrecaoRequisicao) : AuditoriaResposta
+  }
+}
+
+package "service" #E8F5E9 {
+  class AuditoriaService <<Service>> {
+    ~ {static} FUSO : ZoneId = America/Sao_Paulo
+    - repositorio : AuditoriaRepository
+    - turmas : TurmaClient
+    - reconhecimento : ReconhecimentoFacialClient
+    - usuario : UsuarioAutenticado
+    + previa(turmaId : Long, foto : MultipartFile) : PreviaResposta
+    + confirmar(requisicao : ConfirmacaoRequisicao) : AuditoriaResposta
+    + listar(cursoId : Long, turmaId : Long, usuarioId : Long, inicio : LocalDate, fim : LocalDate) : List<AuditoriaResposta>
+    + buscar(id : Long) : AuditoriaResposta
+    + corrigir(id : Long, requisicao : CorrecaoRequisicao) : AuditoriaResposta
+    - carregar(id : Long) : Auditoria
+    - {static} alunosAtivos(turma : Turma) : Set<Long>
+    - {static} validarAlunos(permitidos : Set<Long>, resultados : List<ResultadoRequisicao>) : void
+    ~ {static} matriculaParaAlunoId(matricula : String) : Long
+  }
+}
+
+package "repository" #FFF8E1 {
+  interface AuditoriaRepository <<JpaRepository<Auditoria, Long>, JpaSpecificationExecutor<Auditoria>>> {
+    + save(auditoria : Auditoria) : Auditoria
+    + saveAndFlush(auditoria : Auditoria) : Auditoria
+    + findById(id : Long) : Optional<Auditoria>
+    + findAll(spec : Specification<Auditoria>, sort : Sort) : List<Auditoria>
+  }
+}
+
+package "model" #FCE4EC {
+  class Auditoria <<Entity cv07_auditorias>> {
+    + {static} CONFIRMADA : String
+    + {static} CORRIGIDA : String
+    - id : Long
+    - data : LocalDate
+    - horario : LocalTime
+    - situacao : String
+    - turmaId : Long
+    - usuarioId : Long
+    - resultados : List<ResultadoAuditoria>
+    - correcoes : List<CorrecaoAuditoria>
+    + adicionarResultado(resultado : ResultadoAuditoria) : void
+    + adicionarCorrecao(correcao : CorrecaoAuditoria) : void
+  }
+  class ResultadoAuditoria <<Entity cv08_resultados_auditoria>> {
+    + {static} PRESENTE : String
+    + {static} POSSIVEL_FALTA : String
+    + {static} RECONHECIDA : String
+    + {static} NAO_RECONHECIDA : String
+    - id : Long
+    - alunoId : Long
+    - situacaoPresenca : String
+    - situacaoFace : String
+    - auditoria : Auditoria
+  }
+  class CorrecaoAuditoria <<Entity cv10_correcoes_auditoria>> {
+    - id : Long
+    - usuarioId : Long
+    - dtCorrecao : LocalDateTime
+    - justificativa : String
+    - auditoria : Auditoria
+  }
+}
+
+package "client" #EDE7F6 {
+  class TurmaClient <<Component>> {
+    - http : RestClient
+    + buscar(turmaId : Long, token : String) : Turma
+    + listarPorCurso(cursoId : Long, token : String) : List<Turma>
+    - falha(e : RestClientException) : IntegracaoException
+  }
+  class "Turma" as Turma <<record>> {
+    + id : Long
+    + nome : String
+    + cursoId : Long
+    + alunos : List<Vinculo>
+  }
+  class Vinculo <<record>> {
+    + alunoId : Long
+    + situacao : String
+    + ativo() : boolean
+  }
+  class ReconhecimentoFacialClient <<Component>> {
+    - http : RestClient
+    + auditarSala(foto : MultipartFile) : Resultado
+  }
+  class "Resultado" as ResultadoFacial <<record>> {
+    + reconhecidos : List<Reconhecido>
+    + naoReconhecidos : int
+    + totalFaces : int
+  }
+  class Reconhecido <<record>> {
+    + matricula : String
+    + confianca : Double
+  }
+}
+
+package "dto" #E0F7FA {
+  class PreviaResposta <<record>> {
+    + turmaId : Long
+    + data : LocalDate
+    + horario : LocalTime
+    + alunos : List<AlunoPrevia>
+    + facesNaoIdentificadas : int
+    + facesForaDaTurma : int
+    + totalFaces : int
+  }
+  class AlunoPrevia <<record>> {
+    + alunoId : Long
+    + situacaoPresenca : String
+    + situacaoFace : String
+    + confianca : Double
+  }
+  class ConfirmacaoRequisicao <<record>> {
+    + turmaId : Long
+    + data : LocalDate
+    + horario : LocalTime
+    + resultados : List<ResultadoRequisicao>
+  }
+  class CorrecaoRequisicao <<record>> {
+    + justificativa : String
+    + resultados : List<ResultadoRequisicao>
+  }
+  class ResultadoRequisicao <<record>> {
+    + alunoId : Long
+    + situacaoPresenca : String
+    + situacaoFace : String
+  }
+  class AuditoriaResposta <<record>> {
+    + id : Long
+    + turmaId : Long
+    + usuarioId : Long
+    + data : LocalDate
+    + horario : LocalTime
+    + situacao : String
+    + resultados : List<Resultado>
+    + correcoes : List<Correcao>
+    + {static} de(a : Auditoria) : AuditoriaResposta
+  }
+}
+
+package "security" #F1F8E9 {
+  class UsuarioAutenticado <<Component>> {
+    - autenticacao() : JwtAuthenticationToken
+    + id() : Long
+    + token() : String
+  }
+}
+
+package "config" #ECEFF1 {
+  class SecurityConfiguration <<Configuration>> {
+    + securityFilterChain(http : HttpSecurity, conversorJwt : JwtAuthenticationConverter) : SecurityFilterChain
+    + conversorJwt() : JwtAuthenticationConverter
+    + jwtDecoder(segredo : String) : JwtDecoder
+  }
+  class OpenApiConfiguracao <<Configuration>> {
+    + configurarDocumentacao() : OpenAPI
+  }
+}
+
+package "exception" #FFEBEE {
+  class TratadorGlobalExcecoes <<RestControllerAdvice>> {
+    + recursoNaoEncontrado(...) : ResponseEntity<ErroResposta>
+    + regraNegocio(...) : ResponseEntity<ErroResposta>
+    + integracao(...) : ResponseEntity<ErroResposta>
+    + validacao(...) : ResponseEntity<ErroResposta>
+    + requisicaoInvalida(...) : ResponseEntity<ErroResposta>
+    + fotoGrande(...) : ResponseEntity<ErroResposta>
+  }
+  class RecursoNaoEncontradoException <<404>>
+  class RegraNegocioException <<409>>
+  class IntegracaoException {
+    - status : HttpStatus
+    + getStatus() : HttpStatus
+  }
+  RuntimeException <|-- RecursoNaoEncontradoException
+  RuntimeException <|-- RegraNegocioException
+  RuntimeException <|-- IntegracaoException
+}
+
+AuditoriaController --> AuditoriaService
+AuditoriaService --> AuditoriaRepository
+AuditoriaService --> TurmaClient
+AuditoriaService --> ReconhecimentoFacialClient
+AuditoriaService --> UsuarioAutenticado
+AuditoriaService ..> PreviaResposta : cria
+AuditoriaService ..> AuditoriaResposta : cria
+AuditoriaService ..> Auditoria : grava
+AuditoriaRepository ..> Auditoria
+
+Auditoria "1" *-- "0..*" ResultadoAuditoria
+Auditoria "1" *-- "0..*" CorrecaoAuditoria
+
+Turma "1" *-- "0..*" Vinculo
+TurmaClient ..> Turma
+ReconhecimentoFacialClient ..> ResultadoFacial
+ResultadoFacial "1" *-- "0..*" Reconhecido
+
+PreviaResposta "1" *-- "0..*" AlunoPrevia
+ConfirmacaoRequisicao "1" *-- "1..*" ResultadoRequisicao
+CorrecaoRequisicao "1" *-- "1..*" ResultadoRequisicao
+
+TurmaClient ..> IntegracaoException
+ReconhecimentoFacialClient ..> IntegracaoException
+TratadorGlobalExcecoes ..> IntegracaoException
+@enduml
