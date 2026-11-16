@@ -1,83 +1,189 @@
 # Class Vision — Auditoria Service
 
-API REST Spring Boot 4 / Java 21 da **Auditoria de Presença** (UC-AUD-01 a 03, UC-HIS-01 e 02): o coordenador envia a foto da sala, o serviço consulta o reconhecimento facial, devolve a lista para revisão e grava a auditoria confirmada, o histórico e as correções.
+Serviço REST responsável pela auditoria de presença em salas de aula. A aplicação recebe uma foto da sala, consulta o reconhecimento facial, permite a revisão do resultado pelo coordenador e registra a auditoria, o histórico e as correções.
 
-Diagrama de sequência: [`docs/diagrama-sequencia-auditoria.png`](docs/diagrama-sequencia-auditoria.png) (fonte PlantUML ao lado).
+Implementa os casos de uso **UC-AUD-01 a UC-AUD-03** e **UC-HIS-01 e UC-HIS-02**.
 
-**Produção (Railway, projeto ClassVision):** https://auditoria-service-production.up.railway.app/swagger-ui.html
-Deploy automático a cada push na `main`. As variáveis `DB_*` e `JWT_SECRET` são referências ao serviço MySQL e ao cv-authentication-service. `TURMA_SERVICE_URL` e `RECONHECIMENTO_SERVICE_URL` ainda não estão definidas porque esses serviços não estão no Railway: até lá, prévia e confirmação respondem 502.
+![Diagrama de sequência da auditoria](docs/diagrama-sequencia-auditoria.png)
 
-## Execução
+## Links
 
-1. Tabelas (`ddl-auto=none`): `cv07_auditorias`, `cv08_resultados_auditoria` e `cv10_correcoes_auditoria`. No MySQL do Railway já estão criadas (migração [`docs/migracoes/001-aluno-id-e-correcoes.sql`](docs/migracoes/001-aluno-id-e-correcoes.sql) aplicada em 16/11/2026). Para um banco novo, rode [`docs/ddl-auditoria.sql`](docs/ddl-auditoria.sql).
-2. Defina as variáveis e suba:
+- **Swagger em produção:** <https://auditoria-service-production.up.railway.app/swagger-ui.html>
+- **Diagrama editável:** [`docs/diagrama-sequencia-auditoria.puml`](docs/diagrama-sequencia-auditoria.puml)
 
-| Variável | Uso |
-|---|---|
-| `DB_HOST`, `DB_PORT` (3306), `DB_NAME`, `DB_USER`, `DB_PASSWORD` | MySQL |
-| `JWT_SECRET` | Mesmo segredo do cv-authentication-service |
-| `TURMA_SERVICE_URL` | Base do turma-service (padrão `http://localhost:8081`) |
-| `RECONHECIMENTO_SERVICE_URL` | Base do reconhecimento-facial-service (padrão `http://localhost:5000`) |
-| `PORT` | Porta HTTP (padrão 8080; o Railway define sozinho) |
+## Tecnologias
+
+- Java 21
+- Spring Boot 4
+- Maven
+- MySQL
+
+## Pré-requisitos
+
+- JDK 21
+- MySQL acessível pela aplicação
+- `cv-authentication-service`
+- `turma-service`
+- `reconhecimento-facial-service`
+
+## Configuração
+
+O deploy de produção é feito automaticamente a cada push na branch `main`. Em produção, as tabelas já estão criadas no MySQL do Railway e a migração abaixo foi aplicada em **16/11/2026**.
+
+Para um banco novo, execute [`docs/ddl-auditoria.sql`](docs/ddl-auditoria.sql). Para atualizar um banco existente, consulte [`docs/migracoes/001-aluno-id-e-correcoes.sql`](docs/migracoes/001-aluno-id-e-correcoes.sql).
+
+Configure as variáveis de ambiente antes de iniciar a aplicação:
+
+| Variável | Obrigatória | Descrição | Padrão |
+|---|:---:|---|---|
+| `DB_HOST` | Sim | Host do MySQL | — |
+| `DB_PORT` | Não | Porta do MySQL | `3306` |
+| `DB_NAME` | Sim | Nome do banco | — |
+| `DB_USER` | Sim | Usuário do banco | — |
+| `DB_PASSWORD` | Sim | Senha do banco | — |
+| `JWT_SECRET` | Sim | Mesmo segredo usado pelo `cv-authentication-service` | — |
+| `TURMA_SERVICE_URL` | Não | URL base do `turma-service` | `http://localhost:8081` |
+| `RECONHECIMENTO_SERVICE_URL` | Não | URL base do serviço de reconhecimento facial | `http://localhost:5000` |
+| `PORT` | Não | Porta HTTP da aplicação | `8080` |
+
+> **Atenção:** no Railway, `TURMA_SERVICE_URL` e `RECONHECIMENTO_SERVICE_URL` ainda não estão configuradas. Enquanto esses serviços não estiverem disponíveis, os endpoints de prévia e confirmação retornam `502 Bad Gateway`.
+
+## Como executar
+
+Inicie a aplicação com o Maven Wrapper:
 
 ```bash
 ./mvnw spring-boot:run
 ```
 
-Swagger UI: `http://localhost:8080/swagger-ui.html`
+Após a inicialização:
+
+- API: <http://localhost:8080>
+- Swagger UI: <http://localhost:8080/swagger-ui.html>
+
+## Autenticação e autorização
+
+Todos os endpoints exigem um token JWT no cabeçalho:
+
+```http
+Authorization: Bearer <token>
+```
+
+- Consultas podem ser feitas por qualquer usuário autenticado.
+- Operações de escrita exigem as autoridades `COORDENADOR` ou `ADMINISTRADOR`.
+- As autoridades são lidas da claim `roles`.
+- O identificador do usuário é lido da claim `id` (`usuario_id`).
 
 ## Endpoints
 
-Todos exigem `Authorization: Bearer <JWT>`. Escrita só para `COORDENADOR` (RN-01) ou `ADMINISTRADOR`; leitura para qualquer usuário autenticado.
-
-| Método | Rota | Função |
+| Método | Rota | Descrição |
 |---|---|---|
-| POST | `/auditorias/previa` (multipart: `turmaId`, `foto`) | Reconhece a foto e devolve a lista Presente / Possível falta. Não grava nada. |
-| POST | `/auditorias` | Confirma a auditoria revisada (grava auditoria + resultados) |
-| GET | `/auditorias?cursoId&turmaId&usuarioId&inicio&fim` | Histórico (datas `yyyy-MM-dd`) |
-| GET | `/auditorias/{id}` | Detalhe com resultados e correções |
-| POST | `/auditorias/{id}/correcoes` | Corrige presença com justificativa obrigatória (RSEG-06) |
+| `POST` | `/auditorias/previa` | Analisa uma foto (`multipart`: `turmaId`, `foto`) e retorna presentes e possíveis faltas sem gravar dados. |
+| `POST` | `/auditorias` | Confirma a auditoria revisada e grava a auditoria e seus resultados. |
+| `GET` | `/auditorias?cursoId&turmaId&usuarioId&inicio&fim` | Consulta o histórico. As datas usam o formato `yyyy-MM-dd`. |
+| `GET` | `/auditorias/{id}` | Consulta os detalhes, resultados e correções de uma auditoria. |
+| `POST` | `/auditorias/{id}/correcoes` | Corrige a presença de alunos. A justificativa é obrigatória. |
 
 ### Exemplos
 
-Prévia:
+#### Gerar prévia
+
 ```bash
-curl -H "Authorization: Bearer $TOKEN" -F turmaId=1 -F foto=@sala.jpg http://localhost:8080/auditorias/previa
+curl -X POST \
+  -H "Authorization: Bearer <token>" \
+  -F "turmaId=1" \
+  -F "foto=@sala.jpg" \
+  http://localhost:8080/auditorias/previa
 ```
+
+Exemplo de resposta:
+
 ```json
-{"turmaId":1,"data":"2026-11-16","horario":"16:11:44",
- "alunos":[{"alunoId":2024020,"situacaoPresenca":"PRESENTE","situacaoFace":"RECONHECIDA","confianca":0.93},
-           {"alunoId":2024021,"situacaoPresenca":"POSSIVEL_FALTA","situacaoFace":null,"confianca":null}],
- "facesNaoIdentificadas":1,"facesForaDaTurma":1,"totalFaces":3}
+{
+  "turmaId": 1,
+  "data": "2026-11-16",
+  "horario": "16:11:44",
+  "alunos": [
+    {
+      "alunoId": 2024020,
+      "situacaoPresenca": "PRESENTE",
+      "situacaoFace": "RECONHECIDA",
+      "confianca": 0.93
+    },
+    {
+      "alunoId": 2024021,
+      "situacaoPresenca": "POSSIVEL_FALTA",
+      "situacaoFace": null,
+      "confianca": null
+    }
+  ],
+  "facesNaoIdentificadas": 1,
+  "facesForaDaTurma": 1,
+  "totalFaces": 3
+}
 ```
 
-Confirmar (`data` e `horario` opcionais; sem eles vale a hora do servidor):
-```json
-{"turmaId":1,"resultados":[{"alunoId":2024020,"situacaoPresenca":"PRESENTE","situacaoFace":"RECONHECIDA"},
-                           {"alunoId":2024021,"situacaoPresenca":"POSSIVEL_FALTA"}]}
+#### Confirmar auditoria
+
+`data` e `horario` são opcionais. Quando omitidos, são definidos com base no horário do servidor.
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "turmaId": 1,
+    "resultados": [
+      {
+        "alunoId": 2024020,
+        "situacaoPresenca": "PRESENTE",
+        "situacaoFace": "RECONHECIDA"
+      },
+      {
+        "alunoId": 2024021,
+        "situacaoPresenca": "POSSIVEL_FALTA"
+      }
+    ]
+  }' \
+  http://localhost:8080/auditorias
 ```
 
-Corrigir:
-```json
-{"justificativa":"Aluno chegou atrasado","resultados":[{"alunoId":2024021,"situacaoPresenca":"PRESENTE"}]}
+#### Corrigir presença
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "justificativa": "Aluno chegou atrasado",
+    "resultados": [
+      {
+        "alunoId": 2024021,
+        "situacaoPresenca": "PRESENTE"
+      }
+    ]
+  }' \
+  http://localhost:8080/auditorias/1/correcoes
 ```
 
-## Regras implementadas
+## Regras de negócio e segurança
 
-- JWT validado com `JWT_SECRET`; autoridades lidas da claim `roles`; `usuario_id` vem da claim `id`.
-- Só alunos com vínculo `ATIVO` na turma entram (RN-06); aluno fora da turma ou repetido é recusado.
-- A foto nunca é gravada: existe só durante a requisição (RSEG-04).
-- Várias auditorias por turma no mesmo dia são permitidas (RN-05).
-- Falha no turma-service ou no reconhecimento devolve 502 com mensagem, para o app oferecer "tentar de novo" (RF-AUD-05).
+- A foto é mantida apenas durante a requisição e nunca é gravada (RSEG-04).
+- Apenas alunos com vínculo `ATIVO` na turma são considerados (RN-06).
+- Alunos fora da turma ou repetidos são recusados.
+- É permitido registrar mais de uma auditoria para a mesma turma no mesmo dia (RN-05).
+- Falhas no `turma-service` ou no serviço de reconhecimento retornam `502`, permitindo que o cliente ofereça a opção de tentar novamente (RF-AUD-05).
 
 ## Pendências conhecidas
 
-- **Matrícula x aluno_id**: o reconhecimento devolve a matrícula e a turma guarda `alunoId`. Até existir um serviço de alunos, o `alunoId` vinculado na turma deve ser a própria matrícula numérica.
-- **Faces não identificadas**: `auditar-sala` devolve só a contagem, sem recorte da face; associar uma face específica a um aluno fica para quando o reconhecimento devolver isso. Hoje o coordenador marca o aluno como Presente manualmente.
-- **Turma inativa (RN-04)**: a turma não tem campo de situação; o bloqueio depende do turma-service expor isso.
-- **Instituição**: o histórico não filtra por `instituicaoId` (mesmo comportamento do turma-service).
+- **Matrícula e `alunoId`:** o reconhecimento facial devolve a matrícula, enquanto a turma utiliza `alunoId`. Até a existência de um serviço de alunos, o `alunoId` vinculado à turma deve ser a própria matrícula numérica.
+- **Faces não identificadas:** `auditar-sala` retorna apenas a quantidade, sem o recorte de cada face. A associação de uma face específica a um aluno depende de suporte do serviço de reconhecimento; atualmente, o coordenador faz essa marcação manualmente.
+- **Turma inativa (RN-04):** a turma não possui campo de situação. O bloqueio depende de o `turma-service` expor essa informação.
+- **Instituição:** o histórico ainda não filtra por `instituicaoId`, mantendo o mesmo comportamento do `turma-service`.
 
 ## Testes
+
+Execute a suíte com:
 
 ```bash
 ./mvnw test
