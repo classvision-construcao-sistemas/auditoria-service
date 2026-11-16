@@ -4,6 +4,9 @@ API REST Spring Boot 4 / Java 21 da **Auditoria de Presença** (UC-AUD-01 a 03, 
 
 Diagrama de sequência: [`docs/diagrama-sequencia-auditoria.png`](docs/diagrama-sequencia-auditoria.png) (fonte PlantUML ao lado).
 
+**Produção (Railway, projeto ClassVision):** https://auditoria-service-production.up.railway.app/swagger-ui.html
+Deploy automático a cada push na `main`. As variáveis `DB_*` e `JWT_SECRET` são referências ao serviço MySQL e ao cv-authentication-service. `TURMA_SERVICE_URL` e `RECONHECIMENTO_SERVICE_URL` ainda não estão definidas porque esses serviços não estão no Railway: até lá, prévia e confirmação respondem 502.
+
 ## Execução
 
 1. Tabelas (`ddl-auto=none`): `cv07_auditorias`, `cv08_resultados_auditoria` e `cv10_correcoes_auditoria`. No MySQL do Railway já estão criadas (migração [`docs/migracoes/001-aluno-id-e-correcoes.sql`](docs/migracoes/001-aluno-id-e-correcoes.sql) aplicada em 16/11/2026). Para um banco novo, rode [`docs/ddl-auditoria.sql`](docs/ddl-auditoria.sql).
