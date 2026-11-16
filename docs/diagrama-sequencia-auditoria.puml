@@ -1,0 +1,84 @@
+@startuml diagrama-sequencia-auditoria
+title ClassVision - Auditoria de Presença (UC-AUD-01 a 03, UC-HIS-01 e 02)
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+autonumber
+
+actor "Coordenador" as C
+participant "App (Flutter)" as App
+participant "API Gateway" as GW
+participant "cv-authentication-service" as Auth
+participant "auditoria-service" as Aud
+participant "turma-service" as Turma
+participant "reconhecimento-facial-service" as RF
+database "Milvus" as Milvus
+database "MySQL" as DB
+
+== Login ==
+C -> App : e-mail e senha
+App -> GW : POST /api/auth/login
+GW -> Auth : POST /api/auth/login
+Auth --> App : JWT (id, roles, instituicaoId)
+
+== Prévia: foto da sala (UC-AUD-01/02) ==
+C -> App : escolhe curso e turma, tira ou escolhe a foto
+App -> GW : POST /auditorias/previa (turmaId, foto) + Bearer JWT
+GW -> Aud : repassa
+Aud -> Aud : valida JWT e papel COORDENADOR (RN-01)
+Aud -> Turma : GET /turmas/{turmaId} + Bearer JWT
+alt turma não encontrada
+  Turma --> Aud : 404
+  Aud --> App : 404 "Turma não encontrada"
+else turma encontrada
+  Turma --> Aud : turma + alunos (alunoId, situacao)
+  Aud -> Aud : mantém só alunos ATIVOS (RN-06)
+  Aud -> RF : POST /api/v1/auditar-sala (image)
+  RF -> RF : detecta rostos e gera embeddings
+  RF -> Milvus : busca por similaridade
+  Milvus --> RF : matrículas mais próximas
+  alt serviço facial fora do ar ou imagem inválida
+    RF --> Aud : erro
+    Aud --> App : 502/400 com mensagem (RF-AUD-05)
+    App --> C : mostra erro e opção de tentar de novo
+  else reconhecimento ok
+    RF --> Aud : recognized_students, unrecognized_count, total_faces_detected
+    Aud -> Aud : PRESENTE para reconhecidos da turma,\nPOSSIVEL_FALTA para os demais
+    note right of Aud : a foto não é gravada:\nexiste só durante a requisição (RSEG-04)
+    Aud --> App : prévia (alunos, faces não identificadas,\nfaces de fora da turma, data e hora do servidor)
+  end
+end
+
+== Revisão e confirmação (UC-AUD-03) ==
+App --> C : lista Presente / Possível falta
+C -> App : ajusta situações, data e hora se precisar
+C -> App : confirma
+App -> GW : POST /auditorias (turmaId, data, horario, resultados[])
+GW -> Aud : repassa
+Aud -> Turma : GET /turmas/{turmaId}
+Turma --> Aud : alunos da turma
+Aud -> Aud : valida que cada aluno está ativo na turma
+Aud -> DB : INSERT cv06_auditorias + cv07_resultados_auditoria
+DB --> Aud : ok
+Aud --> App : 201 auditoria CONFIRMADA
+
+== Histórico (UC-HIS-01) ==
+C -> App : filtra por curso, turma, período, coordenador
+App -> GW : GET /auditorias?cursoId&turmaId&inicio&fim&usuarioId
+GW -> Aud : repassa
+opt filtro por curso
+  Aud -> Turma : GET /turmas/curso/{cursoId}
+  Turma --> Aud : turmas do curso
+end
+Aud -> DB : SELECT auditorias + resultados + correções
+DB --> Aud : registros
+Aud --> App : lista (mais recentes primeiro)
+
+== Correção (UC-HIS-02) ==
+C -> App : altera presença e escreve a justificativa
+App -> GW : POST /auditorias/{id}/correcoes (justificativa, resultados[])
+GW -> Aud : repassa
+Aud -> DB : SELECT auditoria
+Aud -> Aud : justificativa obrigatória; aluno precisa estar na auditoria
+Aud -> DB : UPDATE cv07 + INSERT cv08_correcoes_auditoria\n(coordenador, data/hora, justificativa - RSEG-06)
+Aud --> App : auditoria CORRIGIDA com histórico de correções
+@enduml
