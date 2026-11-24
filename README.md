@@ -55,7 +55,9 @@ Configure as variáveis de ambiente antes de iniciar a aplicação:
 
 ## Como executar
 
-Inicie a aplicação com o Maven Wrapper:
+Para subir este serviço junto com todos os outros (MySQL, Milvus, gateway), use o
+`docker compose` da pasta irmã `infra/`. Para rodar só este serviço, inicie a aplicação
+com o Maven Wrapper (as variáveis podem ficar num `.env` na raiz do projeto):
 
 ```bash
 ./mvnw spring-boot:run
@@ -185,7 +187,8 @@ O que o gateway precisa para expor a auditoria:
 ## Regras de negócio e segurança
 
 - A foto é mantida apenas durante a requisição e nunca é gravada (RSEG-04).
-- Apenas alunos com vínculo `ATIVO` na turma são considerados (RN-06).
+- Apenas alunos com vínculo `ATIVO` ou `MATRICULADO` na turma são considerados (RN-06).
+- O JWT do usuário é repassado ao `turma-service` e ao `reconhecimento-facial-service`, que aplicam a própria autorização; os três precisam do mesmo `JWT_SECRET`.
 - Alunos fora da turma ou repetidos são recusados.
 - É permitido registrar mais de uma auditoria para a mesma turma no mesmo dia (RN-05).
 - Falhas no `turma-service` ou no serviço de reconhecimento retornam `502`, permitindo que o cliente ofereça a opção de tentar novamente (RF-AUD-05).
