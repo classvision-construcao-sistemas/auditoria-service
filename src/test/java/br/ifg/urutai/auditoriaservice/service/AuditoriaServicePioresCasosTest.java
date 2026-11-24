@@ -56,7 +56,7 @@ class AuditoriaServicePioresCasosTest {
         // Reconhecimento responde sem a lista de alunos: deve dar erro 502.
         @Test
         void reconhecimentoSemListaDeAlunos() {
-            when(reconhecimento.auditarSala(foto)).thenReturn(new ReconhecimentoFacialClient.Resultado(null, 0, 0));
+            when(reconhecimento.auditarSala(foto, "t")).thenReturn(new ReconhecimentoFacialClient.Resultado(null, 0, 0));
 
             IntegracaoException erro = assertThrows(IntegracaoException.class, () -> service.previa(1L, foto));
             assertEquals(HttpStatus.BAD_GATEWAY, erro.getStatus());
@@ -65,7 +65,7 @@ class AuditoriaServicePioresCasosTest {
         // Reconhecimento responde vazio: deve dar erro 502.
         @Test
         void reconhecimentoComCorpoVazio() {
-            when(reconhecimento.auditarSala(foto)).thenReturn(null);
+            when(reconhecimento.auditarSala(foto, "t")).thenReturn(null);
 
             IntegracaoException erro = assertThrows(IntegracaoException.class, () -> service.previa(1L, foto));
             assertEquals(HttpStatus.BAD_GATEWAY, erro.getStatus());
@@ -104,7 +104,7 @@ class AuditoriaServicePioresCasosTest {
         void vinculoSemAlunoIdNaoDerrubaAPrevia() {
             when(turmas.buscar(eq(3L), any())).thenReturn(new TurmaClient.Turma(3L, "X", 5L,
                     List.of(new Vinculo(10L, "ATIVO"), new Vinculo(null, "ATIVO"))));
-            when(reconhecimento.auditarSala(foto)).thenReturn(new ReconhecimentoFacialClient.Resultado(List.of(), 0, 0));
+            when(reconhecimento.auditarSala(foto, "t")).thenReturn(new ReconhecimentoFacialClient.Resultado(List.of(), 0, 0));
 
             PreviaResposta previa = assertDoesNotThrow(() -> service.previa(3L, foto));
             assertEquals(List.of(10L), previa.alunos().stream().map(PreviaResposta.AlunoPrevia::alunoId).toList());
@@ -117,7 +117,7 @@ class AuditoriaServicePioresCasosTest {
         // Rosto sem matrícula conta como rosto de fora da turma.
         @Test
         void reconhecidoSemMatriculaContaComoForaDaTurma() {
-            when(reconhecimento.auditarSala(foto)).thenReturn(new ReconhecimentoFacialClient.Resultado(
+            when(reconhecimento.auditarSala(foto, "t")).thenReturn(new ReconhecimentoFacialClient.Resultado(
                     List.of(new Reconhecido(null, 0.9), new Reconhecido("10", 0.8)), 0, 2));
 
             PreviaResposta previa = service.previa(1L, foto);
@@ -129,7 +129,7 @@ class AuditoriaServicePioresCasosTest {
         // Aluno reconhecido sem nota de confiança continua presente.
         @Test
         void reconhecidoSemConfiancaAindaContaComoPresente() {
-            when(reconhecimento.auditarSala(foto)).thenReturn(new ReconhecimentoFacialClient.Resultado(
+            when(reconhecimento.auditarSala(foto, "t")).thenReturn(new ReconhecimentoFacialClient.Resultado(
                     List.of(new Reconhecido("10", null)), 0, 1));
 
             PreviaResposta.AlunoPrevia aluno = service.previa(1L, foto).alunos().getFirst();
@@ -141,7 +141,7 @@ class AuditoriaServicePioresCasosTest {
         // Matrícula enorme ou negativa não quebra a prévia.
         @Test
         void matriculaGiganteNaoDerruba() {
-            when(reconhecimento.auditarSala(foto)).thenReturn(new ReconhecimentoFacialClient.Resultado(
+            when(reconhecimento.auditarSala(foto, "t")).thenReturn(new ReconhecimentoFacialClient.Resultado(
                     List.of(new Reconhecido("99999999999999999999999", 0.9), new Reconhecido("-10", 0.9)), 0, 2));
 
             assertEquals(2, service.previa(1L, foto).facesForaDaTurma());
@@ -177,7 +177,7 @@ class AuditoriaServicePioresCasosTest {
             for (int i = 0; i < 2_000; i++) {
                 reconhecidos.add(new Reconhecido(String.valueOf(100_000 + i), 0.5));
             }
-            when(reconhecimento.auditarSala(foto)).thenReturn(new ReconhecimentoFacialClient.Resultado(reconhecidos, 0, reconhecidos.size()));
+            when(reconhecimento.auditarSala(foto, "t")).thenReturn(new ReconhecimentoFacialClient.Resultado(reconhecidos, 0, reconhecidos.size()));
 
             PreviaResposta previa = assertTimeout(Duration.ofSeconds(2), () -> service.previa(9L, foto));
 

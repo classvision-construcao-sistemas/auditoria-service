@@ -78,7 +78,7 @@ class AuditoriaServiceTest {
         // Separa presentes, possíveis faltas e rostos de fora da turma, sem gravar nada.
         @Test
         void marcaPresentesPossiveisFaltasEFacesDeFora() {
-            when(reconhecimento.auditarSala(foto)).thenReturn(new ReconhecimentoFacialClient.Resultado(List.of(
+            when(reconhecimento.auditarSala(foto, "token")).thenReturn(new ReconhecimentoFacialClient.Resultado(List.of(
                     new Reconhecido("10", 0.91), new Reconhecido("30", 0.8), new Reconhecido("99", 0.7), new Reconhecido("abc", 0.6)), 2, 6));
 
             PreviaResposta previa = service.previa(1L, foto);
@@ -102,7 +102,7 @@ class AuditoriaServiceTest {
         // Aluno reconhecido duas vezes fica com a primeira confiança.
         @Test
         void alunoReconhecidoDuasVezesFicaComAPrimeiraConfianca() {
-            when(reconhecimento.auditarSala(foto)).thenReturn(new ReconhecimentoFacialClient.Resultado(List.of(
+            when(reconhecimento.auditarSala(foto, "token")).thenReturn(new ReconhecimentoFacialClient.Resultado(List.of(
                     new Reconhecido(" 20 ", 0.95), new Reconhecido("20", 0.5)), 0, 2));
 
             PreviaResposta previa = service.previa(1L, foto);
@@ -114,7 +114,7 @@ class AuditoriaServiceTest {
         // Se ninguém foi reconhecido, todos ficam como possível falta.
         @Test
         void ninguemReconhecidoViraTudoPossivelFalta() {
-            when(reconhecimento.auditarSala(foto)).thenReturn(new ReconhecimentoFacialClient.Resultado(List.of(), 4, 4));
+            when(reconhecimento.auditarSala(foto, "token")).thenReturn(new ReconhecimentoFacialClient.Resultado(List.of(), 4, 4));
 
             PreviaResposta previa = service.previa(1L, foto);
 
@@ -145,7 +145,7 @@ class AuditoriaServiceTest {
         // Envia o token do usuário para o turma-service.
         @Test
         void repassaOTokenDoUsuarioParaOTurmaService() {
-            when(reconhecimento.auditarSala(foto)).thenReturn(new ReconhecimentoFacialClient.Resultado(List.of(), 0, 0));
+            when(reconhecimento.auditarSala(foto, "token")).thenReturn(new ReconhecimentoFacialClient.Resultado(List.of(), 0, 0));
 
             service.previa(1L, foto);
 
@@ -156,7 +156,7 @@ class AuditoriaServiceTest {
         @Test
         void falhaDeIntegracaoSobeSemAlteracao() {
             IntegracaoException falha = new IntegracaoException(HttpStatus.BAD_GATEWAY, "fora do ar");
-            when(reconhecimento.auditarSala(foto)).thenThrow(falha);
+            when(reconhecimento.auditarSala(foto, "token")).thenThrow(falha);
 
             assertSame(falha, assertThrows(IntegracaoException.class, () -> service.previa(1L, foto)));
         }

@@ -45,7 +45,7 @@ class ReconhecimentoFacialClientIT {
                  "unrecognized_count": 1, "total_faces_detected": 3, "processing_time_ms": 120}
                 """);
 
-        ReconhecimentoFacialClient.Resultado resultado = client.auditarSala(foto);
+        ReconhecimentoFacialClient.Resultado resultado = client.auditarSala(foto, "jwt-do-usuario");
 
         assertEquals(List.of(new ReconhecimentoFacialClient.Reconhecido("10", 0.93), new ReconhecimentoFacialClient.Reconhecido("20", 0.71)),
                 resultado.reconhecidos());
@@ -66,11 +66,34 @@ class ReconhecimentoFacialClientIT {
         RECONHECIMENTO.responder("POST", ROTA, 200, """
                 {"recognized_students": [], "unrecognized_count": 0, "total_faces_detected": 0}""");
 
-        client.auditarSala(foto);
+        client.auditarSala(foto, "jwt-do-usuario");
 
         ServidorFalso.Requisicao requisicao = RECONHECIMENTO.ultima();
         assertNull(requisicao.cabecalhos().getFirst("Transfer-Encoding"));
         assertEquals(String.valueOf(requisicao.corpo().length), requisicao.cabecalhos().getFirst("Content-Length"));
+    }
+
+    // O serviço facial exige o JWT: o token do usuário vai no cabeçalho Authorization.
+    @Test
+    void repassaOTokenDoUsuario() {
+        RECONHECIMENTO.responder("POST", ROTA, 200, """
+                {"recognized_students": [], "unrecognized_count": 0, "total_faces_detected": 0}""");
+
+        client.auditarSala(foto, "jwt-do-usuario");
+
+        assertEquals("Bearer jwt-do-usuario", RECONHECIMENTO.ultima().cabecalhos().getFirst("Authorization"));
+    }
+
+    // Perfil sem permissão no serviço facial vira 403; token recusado (segredo diferente) vira 502.
+    @Test
+    void erroDeAutorizacaoDoServicoFacial() {
+        RECONHECIMENTO.responder("POST", ROTA, 403, "{\"error\": \"sem perfil\"}");
+        assertEquals(HttpStatus.FORBIDDEN,
+                assertThrows(IntegracaoException.class, () -> client.auditarSala(foto, "jwt-do-usuario")).getStatus());
+
+        RECONHECIMENTO.responder("POST", ROTA, 401, "{\"error\": \"Token inválido.\"}");
+        assertEquals(HttpStatus.BAD_GATEWAY,
+                assertThrows(IntegracaoException.class, () -> client.auditarSala(foto, "jwt-do-usuario")).getStatus());
     }
 
     // Foto recusada pelo serviço vira erro 400.
@@ -78,7 +101,7 @@ class ReconhecimentoFacialClientIT {
     void imagemRecusadaViraBadRequest() {
         RECONHECIMENTO.responder("POST", ROTA, 400, "{\"detail\": \"Invalid image\"}");
 
-        IntegracaoException erro = assertThrows(IntegracaoException.class, () -> client.auditarSala(foto));
+        IntegracaoException erro = assertThrows(IntegracaoException.class, () -> client.auditarSala(foto, "jwt-do-usuario"));
         assertEquals(HttpStatus.BAD_REQUEST, erro.getStatus());
         assertEquals("Imagem inválida para reconhecimento facial", erro.getMessage());
     }
@@ -89,7 +112,7 @@ class ReconhecimentoFacialClientIT {
     void outrosErrosViramBadGateway(int status) {
         RECONHECIMENTO.responder("POST", ROTA, status, "{}");
 
-        IntegracaoException erro = assertThrows(IntegracaoException.class, () -> client.auditarSala(foto));
+        IntegracaoException erro = assertThrows(IntegracaoException.class, () -> client.auditarSala(foto, "jwt-do-usuario"));
         assertEquals(HttpStatus.BAD_GATEWAY, erro.getStatus());
         assertEquals("Serviço de reconhecimento facial indisponível. Tente novamente.", erro.getMessage());
     }
@@ -99,7 +122,7 @@ class ReconhecimentoFacialClientIT {
     void servicoForaDoArViraBadGateway() {
         ReconhecimentoFacialClient semServidor = new ReconhecimentoFacialClient(ServidorFalso.urlSemServidor());
 
-        assertEquals(HttpStatus.BAD_GATEWAY, assertThrows(IntegracaoException.class, () -> semServidor.auditarSala(foto)).getStatus());
+        assertEquals(HttpStatus.BAD_GATEWAY, assertThrows(IntegracaoException.class, () -> semServidor.auditarSala(foto, "jwt-do-usuario")).getStatus());
     }
 
     // Defeitos: hoje esses testes falham.
@@ -112,7 +135,7 @@ class ReconhecimentoFacialClientIT {
         void respostaComCorpoVazio() {
             RECONHECIMENTO.responder("POST", ROTA, 200, "");
 
-            assertEquals(HttpStatus.BAD_GATEWAY, assertThrows(IntegracaoException.class, () -> client.auditarSala(foto)).getStatus());
+            assertEquals(HttpStatus.BAD_GATEWAY, assertThrows(IntegracaoException.class, () -> client.auditarSala(foto, "jwt-do-usuario")).getStatus());
         }
 
         // Serviço travado: deve desistir em até 40 segundos com erro 502.
@@ -121,7 +144,7 @@ class ReconhecimentoFacialClientIT {
             RECONHECIMENTO.responderComAtraso("POST", ROTA, Duration.ofMinutes(3), 200, "{}");
 
             IntegracaoException erro = assertTimeoutPreemptively(Duration.ofSeconds(40),
-                    () -> assertThrows(IntegracaoException.class, () -> client.auditarSala(foto)));
+                    () -> assertThrows(IntegracaoException.class, () -> client.auditarSala(foto, "jwt-do-usuario")));
             assertEquals(HttpStatus.BAD_GATEWAY, erro.getStatus());
         }
     }

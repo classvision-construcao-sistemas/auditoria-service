@@ -43,16 +43,31 @@ public class ReconhecimentoFacialClient {
                 .build();
     }
 
-    public Resultado auditarSala(MultipartFile foto) {
+    /**
+     * O reconhecimento-facial-service também exige o JWT do cv-authentication-service
+     * (perfis de chamada), por isso o token do usuário é repassado sem alteração.
+     */
+    public Resultado auditarSala(MultipartFile foto, String token) {
         MultiValueMap<String, Object> corpo = new LinkedMultiValueMap<>();
         corpo.add("image", foto.getResource());
         try {
             return http.post().uri("/api/v1/auditar-sala")
+                    .headers(h -> {
+                        if (token != null && !token.isBlank()) {
+                            h.setBearerAuth(token);
+                        }
+                    })
                     .contentType(MediaType.MULTIPART_FORM_DATA)
                     .body(corpo)
                     .retrieve().body(Resultado.class);
         } catch (HttpClientErrorException.BadRequest e) {
             throw new IntegracaoException(HttpStatus.BAD_REQUEST, "Imagem inválida para reconhecimento facial");
+        } catch (HttpClientErrorException.Forbidden e) {
+            throw new IntegracaoException(HttpStatus.FORBIDDEN, "Seu perfil não tem permissão para usar o reconhecimento facial");
+        } catch (HttpClientErrorException.Unauthorized e) {
+            // Token aceito aqui e recusado lá: os serviços não compartilham o mesmo JWT_SECRET.
+            throw new IntegracaoException(HttpStatus.BAD_GATEWAY,
+                    "O serviço de reconhecimento facial recusou o token. Confira se o JWT_SECRET é o mesmo nos serviços.");
         } catch (RestClientException e) {
             throw new IntegracaoException(HttpStatus.BAD_GATEWAY, "Serviço de reconhecimento facial indisponível. Tente novamente.");
         }

@@ -22,8 +22,9 @@ public class TurmaClient {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Vinculo(Long alunoId, String situacao) {
+        /** "ATIVO" e "MATRICULADO" (situação padrão do app e dos exemplos do turma-service) contam como ativos. */
         public boolean ativo() {
-            return "ATIVO".equalsIgnoreCase(situacao);
+            return "ATIVO".equalsIgnoreCase(situacao) || "MATRICULADO".equalsIgnoreCase(situacao);
         }
     }
 

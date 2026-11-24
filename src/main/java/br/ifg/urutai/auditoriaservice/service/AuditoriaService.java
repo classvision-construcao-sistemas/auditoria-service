@@ -57,7 +57,7 @@ public class AuditoriaService {
             throw new RegraNegocioException("A turma não tem alunos ativos");
         }
 
-        ReconhecimentoFacialClient.Resultado resultado = reconhecimento.auditarSala(foto);
+        ReconhecimentoFacialClient.Resultado resultado = reconhecimento.auditarSala(foto, usuario.token());
 
         Map<Long, Double> reconhecidos = new HashMap<>();
         int foraDaTurma = 0;
