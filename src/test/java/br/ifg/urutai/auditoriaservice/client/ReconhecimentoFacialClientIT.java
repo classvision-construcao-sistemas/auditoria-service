@@ -36,6 +36,23 @@ class ReconhecimentoFacialClientIT {
         RECONHECIMENTO.close();
     }
 
+    // Lê a caixa de cada rosto (frações da foto), reconhecido ou não.
+    @Test
+    void leACaixaDosRostos() {
+        RECONHECIMENTO.responder("POST", ROTA, 200, """
+                {"recognized_students": [{"student_id": "10", "confidence_score": 0.93,
+                                          "relative_area": {"x": 0.1, "y": 0.2, "w": 0.05, "h": 0.07}}],
+                 "unrecognized_faces": [{"relative_area": {"x": 0.6, "y": 0.3, "w": 0.04, "h": 0.06}}],
+                 "unrecognized_count": 1, "total_faces_detected": 2}
+                """);
+
+        ReconhecimentoFacialClient.Resultado resultado = client.auditarSala(foto, "jwt-do-usuario");
+
+        assertEquals(new ReconhecimentoFacialClient.Area(0.1, 0.2, 0.05, 0.07), resultado.reconhecidos().getFirst().area());
+        assertEquals(List.of(new ReconhecimentoFacialClient.Desconhecido(new ReconhecimentoFacialClient.Area(0.6, 0.3, 0.04, 0.06))),
+                resultado.desconhecidos());
+    }
+
     // Envia a foto no campo "image" e lê os alunos reconhecidos.
     @Test
     void enviaAFotoNoCampoImageELeOResultado() {

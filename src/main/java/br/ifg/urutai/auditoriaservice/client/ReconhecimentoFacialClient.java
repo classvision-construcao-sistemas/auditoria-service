@@ -26,13 +26,33 @@ public class ReconhecimentoFacialClient {
     public record Resultado(
             @JsonProperty("recognized_students") List<Reconhecido> reconhecidos,
             @JsonProperty("unrecognized_count") int naoReconhecidos,
-            @JsonProperty("total_faces_detected") int totalFaces) {}
+            @JsonProperty("total_faces_detected") int totalFaces,
+            @JsonProperty("unrecognized_faces") List<Desconhecido> desconhecidos) {
+
+        public Resultado(List<Reconhecido> reconhecidos, int naoReconhecidos, int totalFaces) {
+            this(reconhecidos, naoReconhecidos, totalFaces, null);
+        }
+    }
 
     /** student_id é a matrícula cadastrada no Milvus. */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Reconhecido(
             @JsonProperty("student_id") String matricula,
-            @JsonProperty("confidence_score") Double confianca) {}
+            @JsonProperty("confidence_score") Double confianca,
+            @JsonProperty("relative_area") Area area) {
+
+        public Reconhecido(String matricula, Double confianca) {
+            this(matricula, confianca, null);
+        }
+    }
+
+    /** Rosto detectado que não bateu com nenhum aluno cadastrado. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Desconhecido(@JsonProperty("relative_area") Area area) {}
+
+    /** Caixa do rosto em frações da foto (0 a 1). */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Area(double x, double y, double w, double h) {}
 
     private final RestClient http;
 

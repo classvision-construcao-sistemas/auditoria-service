@@ -75,6 +75,26 @@ class AuditoriaServiceTest {
     @Nested
     class Previa {
 
+        // Devolve a caixa de cada rosto com a situação, para o app marcar a foto.
+        @Test
+        void devolveOsRostosComASituacao() {
+            var area = new ReconhecimentoFacialClient.Area(0.1, 0.2, 0.05, 0.07);
+            when(reconhecimento.auditarSala(foto, "token")).thenReturn(new ReconhecimentoFacialClient.Resultado(
+                    List.of(new Reconhecido("10", 0.91, area), new Reconhecido("99", 0.7, area), new Reconhecido("20", 0.8)),
+                    2, 5,
+                    List.of(new ReconhecimentoFacialClient.Desconhecido(area),
+                            new ReconhecimentoFacialClient.Desconhecido(new ReconhecimentoFacialClient.Area(0, 0, 0, 0)))));
+
+            PreviaResposta previa = service.previa(1L, foto);
+
+            assertEquals(List.of(
+                    new PreviaResposta.Rosto(0.1, 0.2, 0.05, 0.07, 10L, PreviaResposta.RECONHECIDO),
+                    new PreviaResposta.Rosto(0.1, 0.2, 0.05, 0.07, null, PreviaResposta.FORA_DA_TURMA),
+                    new PreviaResposta.Rosto(0.1, 0.2, 0.05, 0.07, null, PreviaResposta.NAO_IDENTIFICADO)),
+                    previa.rostos());
+            assertEquals(2, previa.alunos().stream().filter(a -> ResultadoAuditoria.PRESENTE.equals(a.situacaoPresenca())).count());
+        }
+
         // Separa presentes, possíveis faltas e rostos de fora da turma, sem gravar nada.
         @Test
         void marcaPresentesPossiveisFaltasEFacesDeFora() {

@@ -60,14 +60,21 @@ public class AuditoriaService {
         ReconhecimentoFacialClient.Resultado resultado = reconhecimento.auditarSala(foto, usuario.token());
 
         Map<Long, Double> reconhecidos = new HashMap<>();
+        List<PreviaResposta.Rosto> rostos = new ArrayList<>();
         int foraDaTurma = 0;
         for (ReconhecimentoFacialClient.Reconhecido r : resultado.reconhecidos()) {
             Long alunoId = matriculaParaAlunoId(r.matricula());
             if (alunoId != null && ativos.contains(alunoId)) {
                 reconhecidos.putIfAbsent(alunoId, r.confianca());
+                adicionarRosto(rostos, r.area(), alunoId, PreviaResposta.RECONHECIDO);
             } else {
                 foraDaTurma++;
+                adicionarRosto(rostos, r.area(), null, PreviaResposta.FORA_DA_TURMA);
             }
+        }
+        if (resultado.desconhecidos() != null) {
+            resultado.desconhecidos().forEach(d ->
+                    adicionarRosto(rostos, d == null ? null : d.area(), null, PreviaResposta.NAO_IDENTIFICADO));
         }
 
         List<AlunoPrevia> alunos = ativos.stream().sorted()
@@ -78,7 +85,16 @@ public class AuditoriaService {
 
         LocalDateTime agora = LocalDateTime.now(FUSO);
         return new PreviaResposta(turmaId, agora.toLocalDate(), agora.toLocalTime().withNano(0), alunos,
-                resultado.naoReconhecidos(), foraDaTurma, resultado.totalFaces());
+                resultado.naoReconhecidos(), foraDaTurma, resultado.totalFaces(), rostos);
+    }
+
+    /** Só entram rostos com caixa válida (o serviço facial antigo não manda a caixa). */
+    private static void adicionarRosto(List<PreviaResposta.Rosto> rostos, ReconhecimentoFacialClient.Area area,
+                                       Long alunoId, String situacao) {
+        if (area == null || area.w() <= 0 || area.h() <= 0) {
+            return;
+        }
+        rostos.add(new PreviaResposta.Rosto(area.x(), area.y(), area.w(), area.h(), alunoId, situacao));
     }
 
     /** UC-AUD-03: grava a auditoria revisada pelo coordenador, em lote. */
