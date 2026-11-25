@@ -46,6 +46,17 @@ public class TurmaClient {
         }
     }
 
+    /** Turmas que o usuário do token enxerga (o turma-service limita à instituição dele). */
+    public List<Turma> listar(String token) {
+        try {
+            return http.get().uri("/turmas")
+                    .headers(h -> h.setBearerAuth(token))
+                    .retrieve().body(new ParameterizedTypeReference<>() {});
+        } catch (RestClientException e) {
+            throw falha(e);
+        }
+    }
+
     public List<Turma> listarPorCurso(Long cursoId, String token) {
         try {
             return http.get().uri("/turmas/curso/{cursoId}", cursoId)

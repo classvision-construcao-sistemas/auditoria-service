@@ -59,6 +59,18 @@ class TurmaClientIT {
         assertNull(client.buscar(2L, "t").alunos());
     }
 
+    // Lista as turmas que o token enxerga (o turma-service filtra pela instituição).
+    @Test
+    void listarTurmasDoUsuario() {
+        TURMA_SERVICE.responder("GET", "/turmas", 200, """
+                [{"id": 1, "nome": "ADS", "cursoId": 5}, {"id": 2, "nome": "SI", "cursoId": 6}]""");
+
+        List<TurmaClient.Turma> turmas = client.listar("meu.jwt");
+
+        assertEquals(List.of(1L, 2L), turmas.stream().map(TurmaClient.Turma::id).toList());
+        assertEquals("Bearer meu.jwt", TURMA_SERVICE.ultima().cabecalhos().getFirst("Authorization"));
+    }
+
     // Turma que não existe dá erro de não encontrado.
     @Test
     void buscarTurmaInexistente() {

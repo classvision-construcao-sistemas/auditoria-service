@@ -8,6 +8,7 @@ import br.ifg.urutai.auditoriaservice.dto.CorrecaoRequisicao;
 import br.ifg.urutai.auditoriaservice.dto.PreviaResposta;
 import br.ifg.urutai.auditoriaservice.dto.PreviaResposta.AlunoPrevia;
 import br.ifg.urutai.auditoriaservice.dto.ResultadoRequisicao;
+import br.ifg.urutai.auditoriaservice.exception.IntegracaoException;
 import br.ifg.urutai.auditoriaservice.exception.RecursoNaoEncontradoException;
 import br.ifg.urutai.auditoriaservice.exception.RegraNegocioException;
 import br.ifg.urutai.auditoriaservice.model.Auditoria;
@@ -17,6 +18,7 @@ import br.ifg.urutai.auditoriaservice.repository.AuditoriaRepository;
 import br.ifg.urutai.auditoriaservice.security.UsuarioAutenticado;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -115,23 +117,28 @@ public class AuditoriaService {
         return AuditoriaResposta.de(repositorio.save(auditoria));
     }
 
-    /** UC-HIS-01: histórico com filtros opcionais. */
+    /**
+     * UC-HIS-01: histórico com filtros opcionais. Só entram auditorias de turmas que o
+     * usuário enxerga no turma-service (a instituição dele; todas para o administrador geral).
+     */
     @Transactional(readOnly = true)
     public List<AuditoriaResposta> listar(Long cursoId, Long turmaId, Long usuarioId, LocalDate inicio, LocalDate fim) {
-        List<Long> turmaIds = null;
+        List<Long> turmaIds;
         if (turmaId != null) {
-            turmaIds = List.of(turmaId);
+            turmaIds = turmaVisivel(turmaId) ? List.of(turmaId) : List.of();
         } else if (cursoId != null) {
-            turmaIds = turmas.listarPorCurso(cursoId, usuario.token()).stream().map(TurmaClient.Turma::id).toList();
-            if (turmaIds.isEmpty()) {
-                return List.of();
-            }
+            turmaIds = idsDe(turmas.listarPorCurso(cursoId, usuario.token()));
+        } else {
+            turmaIds = idsDe(turmas.listar(usuario.token()));
+        }
+        if (turmaIds.isEmpty()) {
+            return List.of();
         }
 
         List<Long> ids = turmaIds;
         Specification<Auditoria> filtro = (raiz, consulta, cb) -> {
             List<Predicate> condicoes = new ArrayList<>();
-            if (ids != null) condicoes.add(raiz.get("turmaId").in(ids));
+            condicoes.add(raiz.get("turmaId").in(ids));
             if (usuarioId != null) condicoes.add(cb.equal(raiz.get("usuarioId"), usuarioId));
             if (inicio != null) condicoes.add(cb.greaterThanOrEqualTo(raiz.<LocalDate>get("data"), inicio));
             if (fim != null) condicoes.add(cb.lessThanOrEqualTo(raiz.<LocalDate>get("data"), fim));
@@ -144,13 +151,13 @@ public class AuditoriaService {
 
     @Transactional(readOnly = true)
     public AuditoriaResposta buscar(Long id) {
-        return AuditoriaResposta.de(carregar(id));
+        return AuditoriaResposta.de(carregarVisivel(id));
     }
 
     /** UC-HIS-02: altera a presença de alunos já auditados e registra quem corrigiu, quando e por quê. */
     @Transactional
     public AuditoriaResposta corrigir(Long id, CorrecaoRequisicao requisicao) {
-        Auditoria auditoria = carregar(id);
+        Auditoria auditoria = carregarVisivel(id);
         Map<Long, ResultadoAuditoria> porAluno = auditoria.getResultados().stream()
                 .collect(Collectors.toMap(ResultadoAuditoria::getAlunoId, Function.identity()));
         validarAlunos(porAluno.keySet(), requisicao.resultados());
@@ -163,8 +170,35 @@ public class AuditoriaService {
         return AuditoriaResposta.de(repositorio.saveAndFlush(auditoria));
     }
 
-    private Auditoria carregar(Long id) {
-        return repositorio.findById(id).orElseThrow(() -> new RecursoNaoEncontradoException("Auditoria não encontrada"));
+    /** Auditoria de turma de outra instituição responde como inexistente (não revela que existe). */
+    private Auditoria carregarVisivel(Long id) {
+        Auditoria auditoria = repositorio.findById(id)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Auditoria não encontrada"));
+        if (!turmaVisivel(auditoria.getTurmaId())) {
+            throw new RecursoNaoEncontradoException("Auditoria não encontrada");
+        }
+        return auditoria;
+    }
+
+    /** A turma existe e é da instituição do usuário (o turma-service recusa as de outras). */
+    private boolean turmaVisivel(Long turmaId) {
+        try {
+            return turmas.buscar(turmaId, usuario.token()) != null;
+        } catch (RecursoNaoEncontradoException e) {
+            return false;
+        } catch (IntegracaoException e) {
+            if (e.getStatus() == HttpStatus.FORBIDDEN) {
+                return false;
+            }
+            throw e;
+        }
+    }
+
+    private static List<Long> idsDe(List<TurmaClient.Turma> lista) {
+        if (lista == null) {
+            throw new IntegracaoException(HttpStatus.BAD_GATEWAY, "Serviço de turmas indisponível. Tente novamente.");
+        }
+        return lista.stream().filter(Objects::nonNull).map(TurmaClient.Turma::id).filter(Objects::nonNull).toList();
     }
 
     /** RN-06: aluno com vínculo inativo fica fora da auditoria. */

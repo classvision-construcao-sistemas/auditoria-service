@@ -303,6 +303,20 @@ class AuditoriaServiceTest {
             verify(repositorio, never()).saveAndFlush(any());
         }
 
+        // Não corrige auditoria de turma de outra instituição.
+        @Test
+        void naoCorrigeAuditoriaDeOutraInstituicao() {
+            Auditoria outra = auditoriaConfirmada(8L, 10L);
+            outra.setTurmaId(6L);
+            when(repositorio.findById(8L)).thenReturn(Optional.of(outra));
+            when(turmas.buscar(eq(6L), any())).thenThrow(new RecursoNaoEncontradoException("Turma não encontrada"));
+
+            assertThrows(RecursoNaoEncontradoException.class, () -> service.corrigir(8L, new CorrecaoRequisicao("x",
+                    List.of(new ResultadoRequisicao(10L, "PRESENTE", null)))));
+            assertEquals(Auditoria.CONFIRMADA, outra.getSituacao());
+            verify(repositorio, never()).saveAndFlush(any());
+        }
+
         // Corrigir auditoria que não existe dá erro de não encontrado.
         @Test
         void auditoriaInexistente() {
@@ -348,7 +362,52 @@ class AuditoriaServiceTest {
             ArgumentCaptor<Sort> ordem = ArgumentCaptor.forClass(Sort.class);
             verify(repositorio).findAll(any(Specification.class), ordem.capture());
             assertEquals(Sort.by(Sort.Direction.DESC, "data", "horario"), ordem.getValue());
-            verifyNoInteractions(turmas);
+            verify(turmas).buscar(1L, "token");
+        }
+
+        // Sem filtro, o histórico fica nas turmas que o usuário enxerga no turma-service.
+        @Test
+        @SuppressWarnings("unchecked")
+        void listarSemFiltroUsaAsTurmasDaInstituicao() {
+            when(turmas.listar("token")).thenReturn(List.of(new TurmaClient.Turma(1L, "ADS", 5L, null)));
+            when(repositorio.findAll(any(Specification.class), any(Sort.class))).thenReturn(List.of(auditoriaConfirmada(1L)));
+
+            assertEquals(1, service.listar(null, null, null, null, null).size());
+            verify(turmas).listar("token");
+        }
+
+        // Sem turmas visíveis (ou turma de outra instituição), nada é listado.
+        @Test
+        @SuppressWarnings("unchecked")
+        void listarNaoMostraTurmaDeOutraInstituicao() {
+            when(turmas.listar("token")).thenReturn(List.of());
+            when(turmas.buscar(eq(6L), any())).thenThrow(new IntegracaoException(HttpStatus.FORBIDDEN, "Sem acesso"));
+
+            assertTrue(service.listar(null, null, null, null, null).isEmpty());
+            assertTrue(service.listar(null, 6L, null, null, null).isEmpty());
+            verify(repositorio, never()).findAll(any(Specification.class), any(Sort.class));
+        }
+
+        // Auditoria de turma de outra instituição responde como inexistente.
+        @Test
+        void buscarAuditoriaDeOutraInstituicao() {
+            Auditoria outra = auditoriaConfirmada(8L, 10L);
+            outra.setTurmaId(6L);
+            when(repositorio.findById(8L)).thenReturn(Optional.of(outra));
+            when(turmas.buscar(eq(6L), any())).thenThrow(new IntegracaoException(HttpStatus.FORBIDDEN, "Sem acesso"));
+
+            RecursoNaoEncontradoException erro = assertThrows(RecursoNaoEncontradoException.class, () -> service.buscar(8L));
+            assertEquals("Auditoria não encontrada", erro.getMessage());
+        }
+
+        // Falha do turma-service não vira "não encontrada": continua 502.
+        @Test
+        void buscarComTurmaServiceForaDoAr() {
+            when(repositorio.findById(3L)).thenReturn(Optional.of(auditoriaConfirmada(3L, 10L)));
+            when(turmas.buscar(eq(1L), any())).thenThrow(new IntegracaoException(HttpStatus.BAD_GATEWAY, "fora"));
+
+            IntegracaoException erro = assertThrows(IntegracaoException.class, () -> service.buscar(3L));
+            assertEquals(HttpStatus.BAD_GATEWAY, erro.getStatus());
         }
 
         // Filtrar por curso busca as turmas do curso no turma-service.
