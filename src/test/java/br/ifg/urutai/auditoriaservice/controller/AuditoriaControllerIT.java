@@ -59,6 +59,7 @@ class AuditoriaControllerIT {
 
     private static final String COORDENADOR = "Bearer " + TokensTeste.coordenador(7L);
     private static final String ADMINISTRADOR = "Bearer " + TokensTeste.comPapel(1L, "ROLE_ADMINISTRADOR");
+    private static final String ADMIN_INSTITUICAO = "Bearer " + TokensTeste.comPapel(2L, "ROLE_ADMIN_INSTITUICAO");
     private static final String ALUNO = "Bearer " + TokensTeste.comPapel(50L, "ROLE_ALUNO");
     private static final String PROFESSOR = "Bearer " + TokensTeste.comPapel(60L, "ROLE_PROFESSOR");
 
@@ -120,15 +121,17 @@ class AuditoriaControllerIT {
             verifyNoInteractions(service);
         }
 
-        // Coordenador e administrador podem gravar e corrigir.
+        // Coordenador, administrador da instituição e administrador geral podem gravar e corrigir.
         @Test
-        void coordenadorEAdministradorGravam() throws Exception {
+        void coordenadorEAdministradoresGravam() throws Exception {
             when(service.confirmar(any())).thenReturn(RESPOSTA);
             when(service.corrigir(eq(3L), any())).thenReturn(RESPOSTA);
 
             mvc.perform(json(post("/auditorias"), CONFIRMACAO, COORDENADOR)).andExpect(status().isCreated());
             mvc.perform(json(post("/auditorias"), CONFIRMACAO, ADMINISTRADOR)).andExpect(status().isCreated());
+            mvc.perform(json(post("/auditorias"), CONFIRMACAO, ADMIN_INSTITUICAO)).andExpect(status().isCreated());
             mvc.perform(json(post("/auditorias/3/correcoes"), CORRECAO, ADMINISTRADOR)).andExpect(status().isOk());
+            mvc.perform(json(post("/auditorias/3/correcoes"), CORRECAO, ADMIN_INSTITUICAO)).andExpect(status().isOk());
         }
 
         // Qualquer usuário logado pode ver o histórico.

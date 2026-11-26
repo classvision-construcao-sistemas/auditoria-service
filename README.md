@@ -77,7 +77,7 @@ Authorization: Bearer <token>
 ```
 
 - Consultas podem ser feitas por qualquer usuário autenticado.
-- Operações de escrita exigem as autoridades `COORDENADOR` ou `ADMINISTRADOR`.
+- Operações de escrita exigem as autoridades `COORDENADOR`, `ADMIN_INSTITUICAO` ou `ADMINISTRADOR` (o turma-service limita cada um às turmas da própria instituição).
 - As autoridades são lidas da claim `roles`.
 - O identificador do usuário é lido da claim `id` (`usuario_id`).
 

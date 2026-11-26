@@ -34,9 +34,11 @@ public class SecurityConfiguration {
                 .authorizeHttpRequests(auth -> auth
                         // Swagger: documentação pública.
                         .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
-                        // RN-01: só coordenador realiza e corrige auditoria (administrador geral também).
+                        // RN-01: coordenador realiza e corrige auditoria; o administrador da instituição e o
+                        // administrador geral também. O turma-service limita cada um às turmas da própria
+                        // instituição (todas, para o administrador geral).
                         .requestMatchers(HttpMethod.POST, "/auditorias/previa", "/auditorias", "/auditorias/*/correcoes")
-                        .hasAnyRole("COORDENADOR", "ADMINISTRADOR")
+                        .hasAnyRole("COORDENADOR", "ADMIN_INSTITUICAO", "ADMINISTRADOR")
                         // Histórico: qualquer usuário autenticado.
                         .requestMatchers(HttpMethod.GET, "/auditorias", "/auditorias/*").authenticated()
                         .anyRequest().denyAll())
